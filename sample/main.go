@@ -11,24 +11,12 @@ type URL struct {
 	Age int    `bson:"age"`
 }
 
-func (*URL) Name() string {
-	return "url"
-}
-
 type Student struct {
 	Class string `bson:"class"`
 }
 
-func (*Student) Name() string {
-	return "student"
-}
-
-type Value interface {
-	Name() string
-}
-
 type MyStruct struct {
-	Image Value  `bson:"image" json:"image"`
+	Image interface{}  `bson:"image" json:"image"`
 	Type  string `bson:"type" json:"type"`
 }
 
@@ -44,7 +32,6 @@ func (m *MyStruct) UnmarshalBSON(data []byte) error {
 		return err
 	}
 	log.Printf("%+v\n", getType)
-	// switch type
 	switch getType.Type {
 	case "url":
 		aux := &struct {
@@ -57,8 +44,18 @@ func (m *MyStruct) UnmarshalBSON(data []byte) error {
 			log.Printf("err: %+v\n", err)
 			return err
 		}
-		log.Printf("res: %+v\n", aux.Image)
-		log.Printf("res: %+v\n", aux.H)
+		m.Image = aux.Image
+	case "student":
+		aux := &struct {
+			Image *Student             `bson:"image"`
+			*H    `bson:",inline"` // inline 是重点
+		}{
+			H: (*H)(m),
+		}
+		if err := bson.Unmarshal(data, &aux); err != nil {
+			log.Printf("err: %+v\n", err)
+			return err
+		}
 		m.Image = aux.Image
 	default:
 		return fmt.Errorf("no implement")
@@ -69,25 +66,27 @@ func (m *MyStruct) UnmarshalBSON(data []byte) error {
 
 func main() {
 	m := &MyStruct{
-		Image: &URL{
-			URI: "foobar",
-			Age: 18,
+		// Image: &URL{
+		// 	URI: "foobar",
+		// 	Age: 18,
+		// },
+		Image: &Student{
+			Class: "c++",
 		},
-		Type: "url",
+		Type: "student",
 	}
 	res, err := bson.Marshal(m)
 	if err != nil {
 		panic(err)
 	}
 
-	//fmt.Printf("%+v\n",bson.Raw(res))
-	fmt.Printf("%+v\n", bson.Raw(res))
+	fmt.Printf("raw is %+v\n", bson.Raw(res))
 
 	var unmarshalled MyStruct
 	if err := bson.Unmarshal(res, &unmarshalled); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("%+v\n", unmarshalled)
-	fmt.Printf("%+v\n", unmarshalled.Image.(*URL).URI)
+	fmt.Printf("image: %+v, type: %+v\n", unmarshalled.Image, unmarshalled.Type)
+	fmt.Printf("%+v\n", unmarshalled.Image)
 }
